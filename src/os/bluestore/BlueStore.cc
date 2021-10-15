@@ -35,6 +35,7 @@
 #include "common/safe_io.h"
 #include "common/PriorityCache.h"
 #include "common/url_escape.h"
+#include "common/config.h" // cebruns
 #include "Allocator.h"
 #include "FreelistManager.h"
 #include "BlueFS.h"
@@ -5301,6 +5302,7 @@ int BlueStore::_open_bdev(bool create)
 {
   ceph_assert(bdev == NULL);
   string p = path + "/block";
+  string devname;
   bdev = BlockDevice::create(cct, p, aio_cb, static_cast<void*>(this), discard_cb, static_cast<void*>(this));
   int r = bdev->open(p);
   if (r < 0)
@@ -5327,6 +5329,13 @@ int BlueStore::_open_bdev(bool create)
   if (r < 0) {
     goto fail_close;
   }
+  // get block optimal io size
+  optimal_io_size = bdev->get_optimal_io_size();
+  // cebruns - HACK for testing
+  //optimal_io_size = 65536;
+  bdev->get_devname(&devname);
+  dout(10) << __func__ << " cebruns BlueStore.cc optimal_io_size " << std::hex << optimal_io_size << \
+	  " path is: " << p << " Dev name: " <<  devname << dendl;
 
 #ifdef HAVE_LIBZBD
   if (bdev->is_smr()) {
@@ -5514,6 +5523,7 @@ int BlueStore::_create_alloc()
   ceph_assert(bdev->get_size());
 
   uint64_t alloc_size = min_alloc_size;
+  dout(5) << __func__ << " cebruns - setting alloc size to " << min_alloc_size << dendl;
   
 #ifdef HAVE_LIBZBD
   if (bdev->is_smr()) {
@@ -5524,6 +5534,7 @@ int BlueStore::_create_alloc()
   }
 #endif
   
+  dout(5) << __func__ << " cebruns - creating allocator with size " << alloc_size << dendl;
   shared_alloc.set(Allocator::create(cct, cct->_conf->bluestore_allocator,
     bdev->get_size(),
     alloc_size, "block"));
@@ -6661,7 +6672,14 @@ int BlueStore::mkfs()
     goto out_close_fsid;
 
   // choose min_alloc_size
-  if (cct->_conf->bluestore_min_alloc_size) {
+  dout(0) << __func__ << " BlueStore.cc cebruns use optimal_io_size is: " << cct->_conf->bluestore_use_optimal_io_size_for_min_alloc_size << dendl;
+  dout(0) << __func__ << " BlueStore.cc cebruns optimal_io_size is 0x" << std::hex << optimal_io_size << dendl;
+  if ((cct->_conf->bluestore_use_optimal_io_size_for_min_alloc_size) && (optimal_io_size != 0)) {
+  	dout(0) << __func__ << " BlueStore.cc hurray setting cebruns optimal_io_size is 0x" << std::hex << optimal_io_size << dendl;
+    min_alloc_size = optimal_io_size;
+	cct->_conf.set_val("bluestore_min_alloc_size_ssd", stringify(min_alloc_size));
+  }
+  else if (cct->_conf->bluestore_min_alloc_size) {
     min_alloc_size = cct->_conf->bluestore_min_alloc_size;
   } else {
     ceph_assert(bdev);
@@ -6669,6 +6687,7 @@ int BlueStore::mkfs()
       min_alloc_size = cct->_conf->bluestore_min_alloc_size_hdd;
     } else {
       min_alloc_size = cct->_conf->bluestore_min_alloc_size_ssd;
+      dout(0) << __func__ << " BlueStore.cc cebruns min_alloc_size 0x" << std::hex << min_alloc_size << dendl;
     }
   }
   _validate_bdev();

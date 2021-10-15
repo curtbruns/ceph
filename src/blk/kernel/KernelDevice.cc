@@ -124,7 +124,7 @@ int KernelDevice::open(const string& p)
 {
   path = p;
   int r = 0, i = 0;
-  dout(1) << __func__ << " path " << path << dendl;
+  dout(1) << __func__ << " KernelDevice cebruns open path " << path << dendl;
 
   for (i = 0; i < WRITE_LIFE_MAX; i++) {
     int fd = ::open(path.c_str(), O_RDWR | O_DIRECT);
@@ -233,6 +233,9 @@ int KernelDevice::open(const string& p)
       dout(20) << __func__ << " devname " << devname << dendl;
       rotational = blkdev_buffered.is_rotational();
       support_discard = blkdev_buffered.support_discard();
+	  optimal_io_size = blkdev_buffered.get_optimal_io_size();
+      dout(1) << __func__ << " cebruns in KernelDevice.cc optimal_io_size: "  
+        << optimal_io_size << " Yes?! " << dendl;
       this->devname = devname;
       _detect_vdo();
     }
@@ -314,6 +317,7 @@ int KernelDevice::collect_metadata(const string& prefix, map<string,string> *pm)
   (*pm)[prefix + "rotational"] = stringify((int)(bool)rotational);
   (*pm)[prefix + "size"] = stringify(get_size());
   (*pm)[prefix + "block_size"] = stringify(get_block_size());
+  (*pm)[prefix + "get_optimal_io_size"] = stringify(get_optimal_io_size());
   (*pm)[prefix + "driver"] = "KernelDevice";
   if (rotational) {
     (*pm)[prefix + "type"] = "hdd";

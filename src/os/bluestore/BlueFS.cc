@@ -497,6 +497,7 @@ int BlueFS::mkfs(uuid_d osd_uuid, const bluefs_layout_t& layout)
 
   super.version = 1;
   super.block_size = bdev[BDEV_DB]->get_block_size();
+  dout(1) << __func__ << " bluefs.cc cebruns block_size " << super.block_size << dendl;
   super.osd_uuid = osd_uuid;
   super.uuid.generate_random();
   dout(1) << __func__ << " uuid " << super.uuid << dendl;
